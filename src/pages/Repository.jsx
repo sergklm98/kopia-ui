@@ -281,9 +281,11 @@ export class Repository extends Component {
             </Row>
             <Row>
               <Col>
-                <Button data-testid="disconnect" size="sm" variant="danger" onClick={this.disconnect}>
-                  Disconnect
-                </Button>
+                {!this.state.status.useRepositoryAuth && (
+                  <Button data-testid="disconnect" size="sm" variant="danger" onClick={this.disconnect}>
+                    Disconnect
+                  </Button>
+                )}
               </Col>
             </Row>
           </Form>

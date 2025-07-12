@@ -3,7 +3,7 @@ import "./css/Theme.css";
 import "./css/App.css";
 import axios from "axios";
 import { React, Component } from "react";
-import { Navbar, Nav, Container } from "react-bootstrap";
+import { Navbar, Nav, Container, Button } from "react-bootstrap";
 import { BrowserRouter as Router, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Policy } from "./pages/Policy";
 import { Preferences } from "./pages/Preferences";
@@ -18,6 +18,7 @@ import { SnapshotHistory } from "./pages/SnapshotHistory";
 import { SnapshotRestore } from "./pages/SnapshotRestore";
 import { AppContext } from "./contexts/AppContext";
 import { UIPreferenceProvider } from "./contexts/UIPreferencesContext";
+import { AuthDialog } from "./components/AuthDialog";
 
 export default class App extends Component {
   constructor() {
@@ -28,12 +29,17 @@ export default class App extends Component {
       isFetching: false,
       repoDescription: "",
       isRepositoryConnected: false,
+      useRepositoryAuth: false,
+      showAuthDialog: false,
     };
 
     this.fetchTaskSummary = this.fetchTaskSummary.bind(this);
     this.repositoryUpdated = this.repositoryUpdated.bind(this);
     this.repositoryDescriptionUpdated = this.repositoryDescriptionUpdated.bind(this);
     this.fetchInitialRepositoryDescription = this.fetchInitialRepositoryDescription.bind(this);
+    this.logout = this.logout.bind(this);
+    this.handleAuthSuccess = this.handleAuthSuccess.bind(this);
+    this.handleAuthCancel = this.handleAuthCancel.bind(this);
 
     const tok = document.head.querySelector('meta[name="kopia-csrf-token"]');
     if (tok && tok.content) {
@@ -62,6 +68,7 @@ export default class App extends Component {
           this.setState({
             repoDescription: result.data.description,
             isRepositoryConnected: result.data.connected,
+            useRepositoryAuth: result.data.useRepositoryAuth || false,
           });
         }
       })
@@ -105,6 +112,85 @@ export default class App extends Component {
     this.setState({
       repoDescription: desc,
     });
+  }
+
+  logout() {
+    console.log("Logout button clicked");
+    console.log("Current state before logout:", this.state);
+    
+    axios
+      .post("/api/v1/logout", {})
+      .then((_result) => {
+        console.log("Logout API call successful");
+        
+        // Clear any client-side state
+        this.setState({
+          isRepositoryConnected: false,
+          useRepositoryAuth: false,
+          repoDescription: "",
+        });
+        
+        console.log("State cleared, clearing storage...");
+        
+        // Clear any cached data
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear axios headers that might contain authentication info
+        delete axios.defaults.headers.common["X-Kopia-Csrf-Token"];
+        delete axios.defaults.headers.common["Authorization"];
+        delete axios.defaults.headers.common["Cookie"];
+        
+        // Clear any other potential authentication headers
+        delete axios.defaults.headers.common["X-Requested-With"];
+        delete axios.defaults.headers.common["Accept"];
+        
+        console.log("Storage cleared, showing auth dialog...");
+        
+        // Show the custom authentication dialog
+        this.setState({ showAuthDialog: true });
+      })
+      .catch((error) => {
+        console.error("Logout failed:", error);
+        console.error("Error details:", error.response?.data);
+        
+        // Still clear state and show auth dialog even if logout fails
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear axios headers
+        delete axios.defaults.headers.common["X-Kopia-Csrf-Token"];
+        delete axios.defaults.headers.common["Authorization"];
+        delete axios.defaults.headers.common["Cookie"];
+        delete axios.defaults.headers.common["X-Requested-With"];
+        delete axios.defaults.headers.common["Accept"];
+        
+        this.setState({ showAuthDialog: true });
+      });
+  }
+
+  handleAuthSuccess(username, password) {
+    console.log("Authentication successful for user:", username);
+    
+    // Update axios defaults with new credentials
+    const authHeader = "Basic " + btoa(username + ":" + password);
+    axios.defaults.headers.common["Authorization"] = authHeader;
+    
+    // Close the auth dialog
+    this.setState({ showAuthDialog: false });
+    
+    // Refresh the page to reload with new credentials
+    window.location.reload();
+  }
+
+  handleAuthCancel() {
+    console.log("Authentication cancelled");
+    
+    // Close the auth dialog
+    this.setState({ showAuthDialog: false });
+    
+    // Redirect to login page or show error
+    window.location.href = "/";
   }
 
   render() {
@@ -167,6 +253,18 @@ export default class App extends Component {
                     Preferences
                   </NavLink>
                 </Nav>
+                {this.state.useRepositoryAuth && (
+                  <Nav>
+                    <Button
+                      data-testid="logout-button"
+                      size="sm"
+                      variant="primary"
+                      onClick={this.logout}
+                    >
+                      Logout
+                    </Button>
+                  </Nav>
+                )}
               </Navbar.Collapse>
             </Navbar>
 
@@ -190,6 +288,13 @@ export default class App extends Component {
                 <Route path="/" element={<Navigate to="/snapshots" />} />
               </Routes>
             </Container>
+            
+            {/* Custom Authentication Dialog */}
+            <AuthDialog
+              show={this.state.showAuthDialog}
+              onSuccess={this.handleAuthSuccess}
+              onCancel={this.handleAuthCancel}
+            />
           </UIPreferenceProvider>
         </AppContext.Provider>
       </Router>
