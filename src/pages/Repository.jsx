@@ -12,7 +12,7 @@ import { SetupRepository } from "../components/SetupRepository";
 import { CLIEquivalent } from "../components/CLIEquivalent";
 import { cancelTask } from "../utils/taskutil";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheck, faChevronCircleDown, faChevronCircleUp, faWindowClose } from "@fortawesome/free-solid-svg-icons";
+import { faCheck, faChevronCircleDown, faChevronCircleUp, faWindowClose, faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { Logs } from "../components/Logs";
 import { AppContext } from "../contexts/AppContext";
 
@@ -281,9 +281,19 @@ export class Repository extends Component {
             </Row>
             <Row>
               <Col>
-                <Button data-testid="disconnect" size="sm" variant="danger" onClick={this.disconnect}>
-                  Disconnect
-                </Button>
+                {!this.state.status.useRepositoryAuth && (
+                  <Button data-testid="disconnect" size="sm" variant="danger" onClick={this.disconnect}>
+                    Disconnect
+                  </Button>
+                )}
+                {this.state.status.useRepositoryAuth && (
+                  <div className="text-muted">
+                    <small>
+                      <FontAwesomeIcon icon={faInfoCircle} /> 
+                      Disconnect button is disabled when using repository authentication (--use-repo-auth)
+                    </small>
+                  </div>
+                )}
               </Col>
             </Row>
           </Form>

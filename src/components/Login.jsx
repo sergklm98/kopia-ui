@@ -1,9 +1,10 @@
 import React from "react";
 import { Container, Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import { useAuth } from "../contexts/AuthContext";
+import PropTypes from "prop-types";
 
-export const Login = () => {
-  const { login, isAuthenticated } = useAuth();
+export const Login = ({ useRepositoryAuth }) => {
+  const { login } = useAuth();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
@@ -21,44 +22,84 @@ export const Login = () => {
       
       const response = await axios.get("/api/v1/repo/status", {
         headers: {
-          'Authorization': `Basic ${authString}`
-        }
+          Authorization: `Basic ${authString}`,
+        },
       });
 
       if (response.status === 200) {
+        // Credentials are valid, proceed with login
         login(username, password);
-      }
-    } catch (err) {
-      if (err.response?.status === 401) {
-        setError("Invalid username or password");
       } else {
-        setError("Failed to connect to server. Please check your connection.");
+        setError("Invalid credentials. Please try again.");
       }
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Invalid credentials. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isAuthenticated) {
-    return null; // Don't show login form if already authenticated
+  // If useRepositoryAuth is false, show a message about browser authentication
+  if (useRepositoryAuth === false) {
+    return (
+      <Container>
+        <Row className="justify-content-center">
+          <Col md={6}>
+            <Card>
+              <Card.Header>
+                <h4>Authentication Required</h4>
+              </Card.Header>
+              <Card.Body>
+                <Alert variant="info">
+                  <strong>Browser Authentication Required</strong>
+                  <br />
+                  This server is configured to use browser-based authentication. 
+                  Please enter your credentials in the browser&apos;s authentication dialog.
+                  <br /><br />
+                  <Button 
+                    variant="primary" 
+                    onClick={() => window.location.reload()}
+                  >
+                    Reload Page
+                  </Button>
+                </Alert>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    );
   }
 
+  // If useRepositoryAuth is undefined (still loading), show loading
+  if (useRepositoryAuth === undefined) {
+    return (
+      <Container>
+        <Row className="justify-content-center">
+          <Col md={6}>
+            <Card>
+              <Card.Body className="text-center">
+                <div>Loading...</div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    );
+  }
+
+  // Default login form for repository auth
   return (
-    <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}>
-      <Row className="w-100">
-        <Col md={6} className="mx-auto">
+    <Container>
+      <Row className="justify-content-center">
+        <Col md={6}>
           <Card>
             <Card.Header>
-              <h3 className="text-center">Kopia Login</h3>
+              <h4>Login</h4>
             </Card.Header>
             <Card.Body>
               <Form onSubmit={handleSubmit}>
-                {error && (
-                  <Alert variant="danger" dismissible onClose={() => setError("")}>
-                    {error}
-                  </Alert>
-                )}
-                
                 <Form.Group className="mb-3">
                   <Form.Label>Username</Form.Label>
                   <Form.Control
@@ -67,10 +108,8 @@ export const Login = () => {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username"
                     required
-                    autoFocus
                   />
                 </Form.Group>
-
                 <Form.Group className="mb-3">
                   <Form.Label>Password</Form.Label>
                   <Form.Control
@@ -81,16 +120,19 @@ export const Login = () => {
                     required
                   />
                 </Form.Group>
-
-                <div className="d-grid">
-                  <Button
-                    variant="primary"
-                    type="submit"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Logging in..." : "Login"}
-                  </Button>
-                </div>
+                {error && (
+                  <Alert variant="danger" className="mb-3">
+                    {error}
+                  </Alert>
+                )}
+                <Button 
+                  variant="primary" 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="w-100"
+                >
+                  {isLoading ? "Logging in..." : "Login"}
+                </Button>
               </Form>
             </Card.Body>
           </Card>
@@ -98,4 +140,8 @@ export const Login = () => {
       </Row>
     </Container>
   );
+};
+
+Login.propTypes = {
+  useRepositoryAuth: PropTypes.bool,
 }; 

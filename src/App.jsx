@@ -21,12 +21,13 @@ import { UIPreferenceProvider } from "./contexts/UIPreferencesContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Login } from "./components/Login";
 
-// Main App component that uses hooks
+// Main AppContent with Auth logic
 const AppContent = () => {
   const [runningTaskCount, setRunningTaskCount] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
   const [repoDescription, setRepoDescription] = useState("");
   const [isRepositoryConnected, setIsRepositoryConnected] = useState(false);
+  const [useRepositoryAuth, setUseRepositoryAuth] = useState(undefined);
   const taskSummaryInterval = useRef(null);
   const { isAuthenticated, credentials, logout, setAuthHeader, clearAuthHeader } = useAuth();
 
@@ -74,6 +75,8 @@ const AppContent = () => {
           setRepoDescription(result.data.description);
           setIsRepositoryConnected(result.data.connected);
         }
+        // Check if server is using repository auth
+        setUseRepositoryAuth(result.data.useRepositoryAuth);
       })
       .catch((_) => {
         /* ignore */
@@ -125,7 +128,7 @@ const AppContent = () => {
 
   // If not authenticated, show login form
   if (!isAuthenticated) {
-    return <Login />;
+    return <Login useRepositoryAuth={useRepositoryAuth} />;
   }
 
   return (
@@ -222,7 +225,7 @@ const AppContent = () => {
   );
 };
 
-// Wrapper component that provides the AuthProvider
+// App wrapper that always uses AuthProvider
 export default function App() {
   return (
     <Router>
