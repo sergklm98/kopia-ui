@@ -3,7 +3,7 @@ import "./css/Theme.css";
 import "./css/App.css";
 import axios from "axios";
 import { React, Component } from "react";
-import { Navbar, Nav, Container } from "react-bootstrap";
+import { Navbar, Nav, Container, Button } from "react-bootstrap";
 import { BrowserRouter as Router, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Policy } from "./pages/Policy";
 import { Preferences } from "./pages/Preferences";
@@ -18,6 +18,7 @@ import { SnapshotHistory } from "./pages/SnapshotHistory";
 import { SnapshotRestore } from "./pages/SnapshotRestore";
 import { AppContext } from "./contexts/AppContext";
 import { UIPreferenceProvider } from "./contexts/UIPreferencesContext";
+import { ChangeUserDialog } from "./components/ChangeUserDialog";
 
 export default class App extends Component {
   constructor() {
@@ -28,18 +29,42 @@ export default class App extends Component {
       isFetching: false,
       repoDescription: "",
       isRepositoryConnected: false,
+      useRepositoryAuth: false,
+      showChangeUserDialog: false,
     };
 
     this.fetchTaskSummary = this.fetchTaskSummary.bind(this);
     this.repositoryUpdated = this.repositoryUpdated.bind(this);
     this.repositoryDescriptionUpdated = this.repositoryDescriptionUpdated.bind(this);
     this.fetchInitialRepositoryDescription = this.fetchInitialRepositoryDescription.bind(this);
+    this.handleChangeUser = this.handleChangeUser.bind(this);
+    this.handleChangeUserSuccess = this.handleChangeUserSuccess.bind(this);
+    this.handleChangeUserCancel = this.handleChangeUserCancel.bind(this);
 
     const tok = document.head.querySelector('meta[name="kopia-csrf-token"]');
     if (tok && tok.content) {
       axios.defaults.headers.common["X-Kopia-Csrf-Token"] = tok.content;
     } else {
       axios.defaults.headers.common["X-Kopia-Csrf-Token"] = "-";
+    }
+
+    // Make axios available globally for the ChangeUserDialog
+    window.axios = axios;
+
+    // Restore stored credentials if available
+    const storedCredentials = localStorage.getItem("kopia_auth_encoded");
+    if (storedCredentials) {
+      try {
+        const decoded = atob(storedCredentials);
+        const [username, password] = decoded.split(":");
+        if (username && password) {
+          axios.defaults.headers.common["X-Kopia-User"] = username;
+          axios.defaults.headers.common["X-Kopia-Password"] = password;
+        }
+      } catch {
+        // Invalid stored credentials, clear them
+        localStorage.removeItem("kopia_auth_encoded");
+      }
     }
   }
 
@@ -62,6 +87,7 @@ export default class App extends Component {
           this.setState({
             repoDescription: result.data.description,
             isRepositoryConnected: result.data.connected,
+            useRepositoryAuth: result.data.useRepositoryAuth || false,
           });
         }
       })
@@ -107,8 +133,47 @@ export default class App extends Component {
     });
   }
 
+  handleChangeUser() {
+    this.setState({ showChangeUserDialog: true });
+  }
+
+  handleChangeUserSuccess(username, password) {
+    if (username === "" && password === "") {
+      // Logout case - clear custom headers and refresh
+      delete axios.defaults.headers.common["X-Kopia-User"];
+      delete axios.defaults.headers.common["X-Kopia-Password"];
+      delete axios.defaults.headers.common["Authorization"];
+      
+      // Clear stored credentials
+      localStorage.removeItem("kopia_auth_encoded");
+      
+      // Close the dialog
+      this.setState({ showChangeUserDialog: false });
+      
+      // Refresh the page to reload without credentials
+      window.location.reload();
+    } else {
+      // Set custom headers for future requests
+      axios.defaults.headers.common["X-Kopia-User"] = username;
+      axios.defaults.headers.common["X-Kopia-Password"] = password;
+      
+      // Store encoded credentials
+      localStorage.setItem("kopia_auth_encoded", btoa(username + ":" + password));
+      
+      // Close the dialog
+      this.setState({ showChangeUserDialog: false });
+      
+      // Refresh the page to reload with new credentials
+      window.location.reload();
+    }
+  }
+
+  handleChangeUserCancel() {
+    this.setState({ showChangeUserDialog: false });
+  }
+
   render() {
-    const { uiPrefs, runningTaskCount, isRepositoryConnected } = this.state;
+    const { uiPrefs, runningTaskCount, isRepositoryConnected, useRepositoryAuth } = this.state;
 
     return (
       <Router>
@@ -167,6 +232,18 @@ export default class App extends Component {
                     Preferences
                   </NavLink>
                 </Nav>
+                {useRepositoryAuth && (
+                  <Nav>
+                    <Button
+                      data-testid="change-user-button"
+                      size="sm"
+                      variant="outline-primary"
+                      onClick={this.handleChangeUser}
+                    >
+                      Change User
+                    </Button>
+                  </Nav>
+                )}
               </Navbar.Collapse>
             </Navbar>
 
@@ -190,6 +267,13 @@ export default class App extends Component {
                 <Route path="/" element={<Navigate to="/snapshots" />} />
               </Routes>
             </Container>
+            
+            {/* Change User Dialog */}
+            <ChangeUserDialog
+              show={this.state.showChangeUserDialog}
+              onSuccess={this.handleChangeUserSuccess}
+              onCancel={this.handleChangeUserCancel}
+            />
           </UIPreferenceProvider>
         </AppContext.Provider>
       </Router>
