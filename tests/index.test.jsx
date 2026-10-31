@@ -1,9 +1,17 @@
 import { vi } from "vitest";
 import React from "react";
 
+const { mockBootstrap } = vi.hoisted(() => ({
+  mockBootstrap: vi.fn(() => Promise.resolve("test-token")),
+}));
+
 // Mock the App component
 vi.mock("../src/App", () => ({
   default: () => <div data-testid="mocked-app">Mocked App Component</div>,
+}));
+
+vi.mock("../src/utils/csrf", () => ({
+  bootstrapCSRFToken: mockBootstrap,
 }));
 
 // Mock CSS import
@@ -16,6 +24,12 @@ const mockRoot = {
 };
 const mockCreateRoot = vi.fn(() => mockRoot);
 
+async function importIndex() {
+  const index = await import("../src/index.jsx");
+  await index.appReady;
+  return index;
+}
+
 // Mock react-dom/client
 vi.mock("react-dom/client", () => ({
   createRoot: mockCreateRoot,
@@ -27,6 +41,7 @@ describe("index.jsx", () => {
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
+    mockBootstrap.mockResolvedValue("test-token");
     // Reset modules to ensure fresh imports
     vi.resetModules();
 
@@ -49,7 +64,7 @@ describe("index.jsx", () => {
 
   test("creates root element and renders App component", async () => {
     // Dynamically import index.jsx to trigger its execution
-    await import("../src/index.jsx");
+    await importIndex();
 
     // Verify getElementById was called with "root"
     expect(document.getElementById).toHaveBeenCalledWith("root");
@@ -80,7 +95,7 @@ describe("index.jsx", () => {
 
     // Import the module - this will execute the code
     try {
-      await import("../src/index.jsx");
+      await importIndex();
     } catch {
       // Expected error from createRoot
     }
@@ -101,7 +116,7 @@ describe("index.jsx", () => {
 
   test("renders App component correctly", async () => {
     // Import to test fresh
-    await import("../src/index.jsx");
+    await importIndex();
 
     // Verify the render was called
     expect(mockRender).toHaveBeenCalledTimes(1);
@@ -117,7 +132,7 @@ describe("index.jsx", () => {
 
   test("successfully loads CSS styles", async () => {
     // The CSS import is mocked, so we just verify the module loads without error
-    await expect(import("../src/index.jsx")).resolves.not.toThrow();
+    await expect(importIndex()).resolves.not.toThrow();
   });
 
   test("calls createRoot and render in correct order", async () => {
@@ -133,9 +148,20 @@ describe("index.jsx", () => {
       callOrder.push("render");
     });
 
-    await import("../src/index.jsx");
+    await importIndex();
 
     // Verify correct order of operations
     expect(callOrder).toEqual(["createRoot", "render"]);
+  });
+
+  test("reports bootstrap failures instead of mounting the UI", async () => {
+    mockBootstrap.mockRejectedValue(new Error("unauthorized"));
+
+    await importIndex();
+
+    expect(mockRender).toHaveBeenCalledTimes(1);
+    const rendered = mockRender.mock.calls[0][0];
+    expect(rendered.props.role).toBe("alert");
+    expect(rendered.props.children.join("")).toContain("unauthorized");
   });
 });

@@ -4,7 +4,6 @@ import { vi } from "vitest";
 import React from "react";
 import App from "../src/App";
 import { setupAPIMock } from "./testutils/api-mocks";
-import axios from "axios";
 
 // Mock high-level page components to avoid heavy component trees
 vi.mock("../src/pages/Snapshots", () => ({
@@ -299,35 +298,6 @@ describe("App Component - Task Count", () => {
     // Verify task tab exists and is enabled when repository is connected
     const tasksTab = screen.getByTestId("tab-tasks");
     expect(tasksTab.className).not.toContain("disabled");
-  });
-});
-
-describe("App Component - CSRF Token", () => {
-  test("sets CSRF token from meta tag", async () => {
-    // Create meta tag
-    const meta = document.createElement("meta");
-    meta.name = "kopia-csrf-token";
-    meta.content = "test-csrf-token";
-    document.head.appendChild(meta);
-
-    await renderAndWait(<App />);
-
-    expect(axios.defaults.headers.common["X-Kopia-Csrf-Token"]).toBe("test-csrf-token");
-
-    // Cleanup
-    document.head.removeChild(meta);
-  });
-
-  test("sets default CSRF token when meta tag is not present", async () => {
-    // Ensure no meta tag exists
-    const existingMeta = document.querySelector('meta[name="kopia-csrf-token"]');
-    if (existingMeta) {
-      existingMeta.remove();
-    }
-
-    await renderAndWait(<App />);
-
-    expect(axios.defaults.headers.common["X-Kopia-Csrf-Token"]).toBe("-");
   });
 });
 
